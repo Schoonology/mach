@@ -6,6 +6,8 @@ var qs = require('qs');
 var url = require('url');
 var when = require('when');
 var mime = require('mime');
+var http = require('http');
+var Readable = require('stream').Readable;
 var errors = require('./errors');
 
 exports.stringifyError = function (error) {
@@ -369,3 +371,56 @@ function makeTextResponder(status) {
     return textResponse(status, content);
   };
 }
+
+exports.makeReadable = function (content) {
+  if (typeof content === 'string') {
+    content = new Buffer(content, arguments[1]);
+  }
+
+  if (!Buffer.isBuffer(content)) {
+    throw new Error('Content must be Buffer or string');
+  }
+
+  var stream = new Readable;
+  stream.length = content.length;
+  stream._read = function (size) {
+    stream.push(content);
+    stream.push(null);
+    content = null;
+  };
+
+  return stream;
+}
+
+exports.request = function (options) {
+  var deferred = when.defer();
+  var requestOptions = options.url ? url.parse(options.url) : {};
+
+  ['host', 'hostname', 'port', 'path', 'method', 'headers', 'auth']
+    .forEach(function (key) {
+      if (typeof options[key] !== 'undefined') {
+        requestOptions[key] = options[key];
+      }
+    });
+
+  if (options.qs) {
+    requestOptions.path = (requestOptions.path || '/') + qs.stringify(options.qs);
+  }
+
+  var request = http.request(requestOptions)
+    .on('error', function (err) {
+      deferred.reject(err);
+    })
+    .on('response', function (response) {
+      deferred.resolve({
+        status: response.statusCode,
+        headers: response.headers,
+        content: response
+      });
+    });
+
+  exports.makeReadable(options.content || '')
+    .pipe(request);
+
+  return deferred.promise;
+};

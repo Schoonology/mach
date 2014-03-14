@@ -74,10 +74,10 @@ function Request(options) {
     if (options.content instanceof Readable) {
       this.content = options.content;
     } else {
-      this.content = makeReadable(options.content);
+      this.content = utils.makeReadable(options.content);
     }
   } else {
-    this.content = makeReadable(NO_CONTENT);
+    this.content = utils.makeReadable(NO_CONTENT);
   }
 }
 
@@ -152,7 +152,7 @@ Request.prototype.apply = function (app, extraArgs) {
       response.content = NO_CONTENT;
 
     if (!(response.content instanceof Readable)) {
-      var content = makeReadable(response.content);
+      var content = utils.makeReadable(response.content);
       response.content = content;
       response.headers['Content-Length'] = content.length;
     }
@@ -577,24 +577,4 @@ function parseMultipart(content, maxLength, boundary, partHandler) {
   });
 
   return value.promise;
-}
-
-function makeReadable(content) {
-  if (typeof content === 'string') {
-    content = new Buffer(content, arguments[1]);
-  }
-
-  if (!Buffer.isBuffer(content)) {
-    throw new Error('Content must be Buffer or string');
-  }
-
-  var stream = new Readable;
-  stream.length = content.length;
-  stream._read = function (size) {
-    stream.push(content);
-    stream.push(null);
-    content = null;
-  };
-
-  return stream;
 }
